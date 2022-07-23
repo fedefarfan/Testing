@@ -1,118 +1,42 @@
 #include "sht1X.h"
+#include "communication.h"
 #include<stdio.h>
 #include <stdbool.h>
 
-static uint8_t data_config_init=195;//
-static uint8_t hum_config_measure=5;
-static uint8_t temp_config_measure=3;
-static bool LOW = 0;
-static bool HIGH = 1;
+bool AckSht1x_getAck_Temp(void){
 
-void Gpio_DATA_In_Config(void){
-	bool Gpio_DATA=0;
-
+	bool ACK = communication_ConfigurationTempMeasurement(0x03);
+	return ACK;
 }
 
-void Gpio_DATA_Out_Config(void){
-	bool Gpio_DATA=1;
+bool AckSht1x_getAck_Hum(void){
 
+	bool ACK = communication_ConfigurationHumMeasurement(0x05);
+	return ACK;
 }
 
-void Gpio_SCK_Out_Config(void){
-	bool Gpio_SCK=1;
+bool AckSht1x_getAck_Error(){
 
+	bool ACK = communication_ConfigurationErrorMeasurement(0x08);
+	return ACK;
 }
 
-uint8_t DATA_send_bit_to_sensor(bool Num,uint8_t weight){
-	return Num*weight;
+float ReadSht1x_Humidity(void){
+
+	uint16_t Value = communication_ReadHumSht1x(0x07);
+	float rh_lin=-0.0000015955*(float)Value*(float)Value + 0.0367*(float)Value - 4.3468;
+	printf("test_True_linear_hum_ESTIMATE: HUM_lineal(%u)= %.1f",Value,rh_lin);
+	return rh_lin;
 }
 
-void SCK_send_bit_to_sensor(bool Num){
-	bool SCK_send=Num;
+float ReadSht1x_Temperature(void){
 
+	uint16_t Value = communication_ReadTempSht1x(0x08);
+	float temp_lin=-40.1f + 0.01f*(float)Value;
+	printf("test_linear_Temperature_ESTIMATE: TEMP_lineal(%u)= %.1f",Value,temp_lin);
+	return temp_lin;
 }
 
-bool sht1X_Init(uint8_t data_in,uint8_t sck_in){
-	uint8_t i,number_config=0;
-	bool error=0;
-	Gpio_DATA_Out_Config();
-	Gpio_SCK_Out_Config();
-
-	/*Dependiendo de los valores de data_in y sck_in, se envia 
-	los 8  bits de forma serial por el puerto DATA y SCK 
-	valor correcto para SCK: 01100110
-	valor correcto para DATA: 11000011 */
-
-	for (i=128;i>0;i/=2){ 
-
-	/*Envia 1 y 0 por elpuerto DATA */
-		if (i & data_in)  number_config=number_config + DATA_send_bit_to_sensor(HIGH,i);//ENVIA 1
-		else  number_config=number_config + DATA_send_bit_to_sensor(LOW,i);//ENVIA 0
-		
-		Queue_Time(1);
-	
-	/*Envia 1 y 0 por elpuerto SCK */
-		if (i & sck_in)  SCK_send_bit_to_sensor(HIGH);
-		else  SCK_send_bit_to_sensor(LOW);
-
-	}
-	//printf("numero init config %u",number_config);
-
-	/*Analizamos si el dato enviado es el correcto */
-	error=DATA_init(number_config);
-return error;
-}
-
-bool sht1X_Measure_Configure_Comand(uint8_t value){
-	uint8_t i,number_config=0;
-	bool error=0;
-
-
-	/*Dependiendo del valor value, se envia 
-	los 8  bits de forma serial por el puerto DATA 
-	valor correcto para Temperatura: 00000011
-	valor correcto para Humedad: 00000101 */
-
-	for (i=128;i>0;i/=2){
-
-		if (i & value)  number_config=number_config + DATA_send_bit_to_sensor(HIGH,i);//ENVIA 1
-		else  number_config=number_config + DATA_send_bit_to_sensor(LOW,i);//ENVIA 0
-		
-		SCK_send_bit_to_sensor(HIGH);
-		Queue_Time(1);
-		SCK_send_bit_to_sensor(LOW);
-	}
-	//printf("numero %u",number_config);
-
-	SCK_send_bit_to_sensor(HIGH);
-
-	/*Cambia el puerto DATA como entrada */
-	Gpio_DATA_In_Config();
-	
-	/*Analizamos si el dato enviado es el correcto por medio del ACK*/
-	error=DATA_in_acknowledgment(number_config);
-
-	SCK_send_bit_to_sensor(LOW);
-	
-return error;
-}
-
-bool DATA_in_acknowledgment(uint8_t number_config_sensor){
-	if(number_config_sensor==hum_config_measure)
-	return 0;
-	else if(number_config_sensor==temp_config_measure)
-	return 0;
-	else
-return 1;
-}
-
-bool DATA_init(uint8_t number_config_sensor){
-if(number_config_sensor==data_config_init)
-return 0;
-else
-return 1;
-	
-}
 
 bool sht1X_linear_hum(uint16_t p_humedad){
 	/* Constantes que indica elfabricante  */
@@ -170,10 +94,4 @@ bool sht1X_true_linear_hum(uint16_t p_humedad,float t_C){
 	else errorh=0;
 	
 return errorh;
-}
-
-
-void Queue_Time(uint32_t Time_e){
-uint32_t Micro_queue_time=Time_e;
-
 }
